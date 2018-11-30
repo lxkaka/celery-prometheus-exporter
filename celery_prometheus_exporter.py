@@ -28,6 +28,8 @@ TASKS = prometheus_client.Gauge(
 TASKS_NAME = prometheus_client.Gauge(
     'celery_tasks_by_name', 'Number of tasks per state and name',
     ['state', 'name'])
+TASKS_RUNTIME = prometheus_client.Histogram(
+    'celery_tasks_runtime', 'runtime of succeed task', ['name'])
 WORKERS = prometheus_client.Gauge(
     'celery_workers', 'Number of alive workers')
 LATENCY = prometheus_client.Histogram(
@@ -69,6 +71,9 @@ class MonitorThread(threading.Thread):
                     state = task.state
                 if state == celery.states.STARTED:
                     self._observe_latency(evt)
+                if state == celery.states.SUCCESS:
+                    task = state.tasks.get(evt['uuid'])
+                    TASKS_RUNTIME.labels(name=task.name).observe(task.runtime)
                 self._collect_tasks(evt, state)
 
     def _observe_latency(self, evt):
