@@ -72,8 +72,9 @@ class MonitorThread(threading.Thread):
                 if state == celery.states.STARTED:
                     self._observe_latency(evt)
                 if state == celery.states.SUCCESS:
-                    task = state.tasks.get(evt['uuid'])
-                    TASKS_RUNTIME.labels(name=task.name).observe(task.runtime)
+                    self._observe_runtime(evt)
+                    # task = self._state.tasks[evt['uuid']]
+                    # TASKS_RUNTIME.labels(name=task.name).observe(task.runtime)
                 self._collect_tasks(evt, state)
 
     def _observe_latency(self, evt):
@@ -85,6 +86,17 @@ class MonitorThread(threading.Thread):
             # ignore latency if it is a retry
             if prev_evt.state == celery.states.RECEIVED:
                 LATENCY.observe(
+                    evt['local_received'] - prev_evt.local_received)
+
+    def _observe_runtime(self, evt):
+        try:
+            prev_evt = self._state.tasks[evt['uuid']]
+        except KeyError:  # pragma: no cover
+            pass
+        else:
+            # ignore latency if it is a retry
+            if prev_evt.state == celery.states.STARTED:
+                TASKS_RUNTIME.labels(name=prev_evt.name).observe(
                     evt['local_received'] - prev_evt.local_received)
 
     def _collect_tasks(self, evt, state):
